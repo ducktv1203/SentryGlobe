@@ -42,13 +42,25 @@ export function useRealtimeAttacks() {
   useEffect(() => {
     const client = getSupabase();
     if (client) {
+      console.log('📡 Connecting to Supabase Realtime (Database mode)...');
+      
       const channel = client
-        .channel('sentry_live_feed')
-        .on('broadcast', { event: 'new_attack' }, (payload) => {
-          const attack = payload.payload as Attack;
-          processAttack(attack);
-        })
-        .subscribe();
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'attacks',
+          },
+          (payload) => {
+            console.log('🔥 New attack from DB:', payload.new);
+            processAttack(payload.new as Attack);
+          }
+        )
+        .subscribe((status) => {
+          console.log('Realtime status:', status);
+        });
 
       return () => {
         client.removeChannel(channel);
