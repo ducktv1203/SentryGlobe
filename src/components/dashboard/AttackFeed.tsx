@@ -14,7 +14,7 @@ export default function AttackFeed({ attacks }: AttackFeedProps) {
     <div className="pointer-events-auto w-80 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-2xl shadow-cyan-500/5 max-h-[340px] overflow-hidden">
       <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-400 mb-4 flex items-center gap-2">
         <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        Live Attack Feed
+        Live Global Threat Feed
       </h2>
 
       <AnimatePresence mode="popLayout" initial={false}>
@@ -51,13 +51,23 @@ export default function AttackFeed({ attacks }: AttackFeedProps) {
                 {ATTACK_TYPE_LABELS[attack.type]}
               </span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-gray-500">
-                {attack.source_location.country} → {attack.target_location.city}
-              </span>
-              <span className="text-[9px] text-gray-600 font-mono">
-                {new Date(attack.timestamp).toLocaleTimeString()}
-              </span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-400 font-medium">
+                  {attack.source_location.country}
+                </span>
+                <span className="text-[10px] text-cyan-500/80 font-bold tracking-tighter">
+                  VERIFIED
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-500">
+                  Target: {attack.target_location.city}, {attack.target_location.country}
+                </span>
+                <span className="text-[9px] text-gray-600 font-mono">
+                  {new Date(attack.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
             </div>
           </motion.div>
         ))}

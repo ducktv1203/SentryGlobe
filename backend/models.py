@@ -23,8 +23,8 @@ class Attack(BaseModel):
     target_location: TargetLocation
     source_location: SourceLocation
     severity: Literal["low", "medium", "high"]
-    type: Literal["UDP Flood", "SYN Flood",
-                  "HTTP Request", "DNS Amplification"]
+    type: Literal["UDP Flood", "SYN Flood", "HTTP Request",
+                  "DNS Amplification", "Port Scan", "Brute Force"]
     timestamp: str
 
 

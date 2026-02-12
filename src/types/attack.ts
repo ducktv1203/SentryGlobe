@@ -11,7 +11,7 @@ export interface Attack {
   target_location: AttackLocation;
   source_location: AttackLocation;
   severity: "low" | "medium" | "high";
-  type: "UDP Flood" | "SYN Flood" | "HTTP Request" | "DNS Amplification";
+  type: "UDP Flood" | "SYN Flood" | "HTTP Request" | "DNS Amplification" | "Port Scan" | "Brute Force";
   timestamp: string;
 }
 
@@ -37,4 +37,6 @@ export const ATTACK_TYPE_LABELS: Record<Attack["type"], string> = {
   "SYN Flood": "SYN",
   "HTTP Request": "HTTP",
   "DNS Amplification": "DNS",
+  "Port Scan": "SCAN",
+  "Brute Force": "BRUTE",
 };

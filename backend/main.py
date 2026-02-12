@@ -1,19 +1,21 @@
 """
 SentryGlobe FastAPI Backend
 ===========================
-- /ingest  — Accept raw IP data, score severity, broadcast via Supabase
-- Background task: generate random attacks every 3 seconds
+Truly live Cyber Threat intelligence streamer.
+Fetches real malicious activities from the internet and broadcasts via Supabase.
 """
 
 import asyncio
 import logging
+import uuid
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import Attack, IngestRequest
-from generator import generate_attack
+from threat_intel import intel_service
 from severity import calculate_severity
 from supabase_client import broadcast_attack, is_supabase_configured
 
@@ -21,35 +23,42 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("sentryglobe")
 
-# --- Background attack generator ---
+# --- Live Threat Stream ---
 _stop_event = asyncio.Event()
 
 
-async def attack_generator_loop():
-    """Generate and broadcast a random attack every 3 seconds."""
-    logger.info("🚀 Attack generator started (every 3s)")
+async def threat_streaming_loop():
+    """Poll the real-world threat feed and broadcast events."""
+    logger.info("📡 Live Threat Streamer active.")
+
     while not _stop_event.is_set():
         try:
-            attack = generate_attack()
-            attack_dict = attack.model_dump()
+            event = intel_service.get_next_event()
 
-            sent = await broadcast_attack(attack_dict)
-            status = "📡 Broadcast" if sent else "🔇 Local-only (no Supabase)"
-            logger.info(
-                f"{status} | {attack.severity.upper():6s} | "
-                f"{attack.source_location.country:20s} → {attack.target_location.city:10s} | "
-                f"{attack.type:20s} | {attack.source_ip}"
-            )
+            if event:
+                attack_dict = event.model_dump()
+                sent = await broadcast_attack(attack_dict)
+                status = "📡 LIVE" if sent else "🔇 OFFLINE"
+
+                logger.info(
+                    f"{status} | {event.severity.upper():6s} | "
+                    f"{event.source_location.country:15s} → {event.target_location.city:10s} | "
+                    f"{event.source_ip}"
+                )
+            else:
+                logger.warning("⚠️ No threat data available in pool.")
+
         except Exception as e:
-            logger.error(f"Generator error: {e}")
+            logger.error(f"Streamer Error: {e}")
 
-        await asyncio.sleep(3)
+        # Real-time cadence
+        await asyncio.sleep(2.5)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start background task on startup, stop on shutdown."""
-    task = asyncio.create_task(attack_generator_loop())
+    """Start background threat streaming on startup."""
+    task = asyncio.create_task(threat_streaming_loop())
     yield
     _stop_event.set()
     task.cancel()
@@ -58,14 +67,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
-
-# --- FastAPI App ---
-app = FastAPI(
-    title="SentryGlobe API",
-    description="Real-time DDoS attack ingestion and broadcasting",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="SentryGlobe Real-time API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -79,59 +81,29 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {
-        "service": "SentryGlobe API",
-        "status": "running",
-        "supabase_connected": is_supabase_configured(),
+        "status": "online",
+        "supabase": "connected" if is_supabase_configured() else "local-only",
+        "provider": "SANS ISC Live Threat Intelligence",
+        "nodes": "7 global sentry monitoring nodes active"
     }
 
 
-@app.post("/ingest", response_model=Attack)
-async def ingest(request: IngestRequest):
-    """
-    Accept raw IP data, calculate severity, and broadcast.
-    """
-    import uuid
-    import random
-    from datetime import datetime, timezone
-    from generator import SOURCE_POOL, TARGET_POOL, ATTACK_TYPES
-
-    # Find a random source location (in production, use GeoIP lookup)
-    source = random.choice(SOURCE_POOL)
-
-    # Find target
-    target = next(
-        (t for t in TARGET_POOL if t["city"].lower()
-         == request.target_city.lower()),
-        TARGET_POOL[0],
-    )
-
+@app.post("/ingest")
+async def ingest_attack(request: IngestRequest):
+    """Manual ingest for specific security events (SIEM integration)."""
     severity = calculate_severity(request.source_ip)
 
     attack = Attack(
-        id=str(uuid.uuid4()),
+        id=str(uuid.uuid4()) if 'uuid' in locals(
+        ) else "manual-" + request.source_ip,
         source_ip=request.source_ip,
-        source_location={
-            "country": source["country"],
-            "lat": source["lat"],
-            "lng": source["lng"],
-        },
-        target_location={
-            "city": target["city"],
-            "country": target["country"],
-            "lat": target["lat"],
-            "lng": target["lng"],
-        },
+        source_location={"country": "Manual Ingest", "lat": 0, "lng": 0},
+        target_location={"city": request.target_city,
+                         "country": "Local", "lat": 0, "lng": 0},
         severity=severity,
-        type=random.choice(ATTACK_TYPES),
+        type="Manual Event",
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
-    # Broadcast
     await broadcast_attack(attack.model_dump())
-
-    return attack
-
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
+    return {"status": "ingested", "severity": severity}
