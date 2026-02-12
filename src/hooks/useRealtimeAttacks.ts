@@ -20,6 +20,7 @@ export function useRealtimeAttacks() {
   const orderRef = useRef(0);
 
   const processAttack = useCallback((attack: Attack) => {
+    console.log('Processing attack:', attack.source_ip, attack.severity);
     orderRef.current += 1;
     const arc = attackToArc(attack, orderRef.current);
 

@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import Attack, IngestRequest
 from generator import generate_attack
 from severity import calculate_severity
-from supabase_client import broadcast_attack, SUPABASE_URL
+from supabase_client import broadcast_attack, is_supabase_configured
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
@@ -81,7 +81,7 @@ async def root():
     return {
         "service": "SentryGlobe API",
         "status": "running",
-        "supabase_connected": bool(SUPABASE_URL),
+        "supabase_connected": is_supabase_configured(),
     }
 
 

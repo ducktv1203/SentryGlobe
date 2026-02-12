@@ -12,20 +12,17 @@ function GlobeMesh() {
 
   useFrame(() => {
     if (meshRef.current) {
-      meshRef.current.rotation.y += 0.001;
+      meshRef.current.rotation.y += 0.01;
     }
   });
 
   return (
     <mesh ref={meshRef}>
       <sphereGeometry args={[2, 64, 64]} />
-      <meshPhongMaterial
-        color="#0a0e27"
-        emissive="#061233"
-        emissiveIntensity={0.4}
-        shininess={20}
+      <meshBasicMaterial
+        color="#101a4a"
         transparent
-        opacity={0.95}
+        opacity={0.9}
       />
       {/* Wireframe overlay for grid effect */}
       <mesh>
@@ -34,7 +31,7 @@ function GlobeMesh() {
           color="#00f0ff"
           wireframe
           transparent
-          opacity={0.04}
+          opacity={0.3}
         />
       </mesh>
     </mesh>
