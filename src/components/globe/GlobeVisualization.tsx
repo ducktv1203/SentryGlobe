@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useMemo, useEffect, Suspense } from 'react';
+import { useRef, useMemo, Suspense, useState } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { useEffect } from 'react';
 import { Position } from '@/types/attack';
 
 // --- Helper: Lat/Lng to 3D ---
@@ -24,20 +25,10 @@ function GlobeMesh() {
     <mesh ref={meshRef}>
       <sphereGeometry args={[2, 64, 64]} />
       <meshBasicMaterial
-        color="#080c1d"
-        transparent
-        opacity={0.9}
+        color="#040714"
+        transparent={false}
+        opacity={1}
       />
-      {/* Wireframe overlay */}
-      <mesh>
-        <sphereGeometry args={[2.005, 48, 48]} />
-        <meshBasicMaterial
-          color="#00f0ff"
-          wireframe
-          transparent
-          opacity={0.1}
-        />
-      </mesh>
     </mesh>
   );
 }
@@ -56,12 +47,12 @@ function Atmosphere() {
     varying vec3 vNormal;
     void main() {
       float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-      gl_FragColor = vec4(0.0, 0.94, 1.0, 1.0) * intensity * 0.5;
+      gl_FragColor = vec4(0.0, 0.94, 1.0, 1.0) * intensity * 0.4;
     }
   `;
 
   return (
-    <mesh scale={[1.12, 1.12, 1.12]}>
+    <mesh scale={[1.15, 1.15, 1.15]}>
       <sphereGeometry args={[2, 64, 64]} />
       <shaderMaterial
         vertexShader={vertexShader}
@@ -74,59 +65,61 @@ function Atmosphere() {
   );
 }
 
-// --- World Continent Dots (GeoJSON Support) ---
-function WorldDots() {
+// --- World Map Outlines (Vector Lines) ---
+function WorldMap() {
   const data = useLoader(THREE.FileLoader, '/globe.json');
   
-  const geometry = useMemo(() => {
-    if (!data) return new THREE.BufferGeometry();
-    let points: [number, number][] = [];
-    
+  const lineGroups = useMemo(() => {
+    if (!data) return [];
+    const groups: THREE.Vector3[][] = [];
+    const radius = 2.02;
+
     try {
       const parsed = JSON.parse(data as string);
       
-      // If it has a specific points array (Aceternity format)
-      if (parsed.points) {
-        points = parsed.points;
-      } 
+      const processCoords = (coords: [number, number][]) => {
+        const points: THREE.Vector3[] = [];
+        coords.forEach((coord: [number, number]) => {
+          points.push(latLngToVector3(coord[1], coord[0], radius));
+        });
+        groups.push(points);
+      };
+
       // If it's standard GeoJSON (FeatureCollection)
-      else if (parsed.features) {
-        parsed.features.forEach((feature: any) => {
+      if (parsed.features) {
+        parsed.features.forEach((feature: { geometry: { type: string; coordinates: [number, number][][] | [number, number][][][] } }) => {
+          const type = feature.geometry.type;
           const coords = feature.geometry.coordinates;
-          if (feature.geometry.type === 'Polygon') {
-            coords[0].forEach((c: any) => points.push([c[1], c[0]]));
-          } else if (feature.geometry.type === 'MultiPolygon') {
-            coords.forEach((poly: any) => poly[0].forEach((c: any) => points.push([c[1], c[0]])));
+
+          if (type === 'Polygon') {
+            (coords as [number, number][][]).forEach((ring) => processCoords(ring));
+          } else if (type === 'MultiPolygon') {
+            (coords as [number, number][][][]).forEach((polygon) => {
+              polygon.forEach((ring) => processCoords(ring));
+            });
           }
         });
       }
     } catch (e) {
-      console.error("Failed to parse globe.json", e);
+      console.error("Failed to parse globe.json for outlines", e);
     }
-
-    const positions: number[] = [];
-    const radius = 2.015;
-    
-    points.forEach(([lat, lng]) => {
-      const v = latLngToVector3(lat, lng, radius);
-      positions.push(v.x, v.y, v.z);
-    });
-    
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    return geo;
+    return groups;
   }, [data]);
 
   return (
-    <points geometry={geometry}>
-      <pointsMaterial
-        color="#00f0ff"
-        size={0.015}
-        transparent
-        opacity={0.4}
-        sizeAttenuation
-      />
-    </points>
+    <group>
+      {lineGroups.map((points, i) => (
+        <lineLoop key={`country-${i}`}>
+          <bufferGeometry attach="geometry">
+            <bufferAttribute
+              attach="attributes-position"
+              args={[new Float32Array(points.flatMap(p => [p.x, p.y, p.z])), 3]}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial attach="material" color="#00f0ff" transparent opacity={0.3} linewidth={1} />
+        </lineLoop>
+      ))}
+    </group>
   );
 }
 
@@ -134,56 +127,57 @@ function WorldDots() {
 function AttackArcs({ arcs }: { arcs: Position[] }) {
   const groupRef = useRef<THREE.Group>(null);
   const linesRef = useRef<Map<string, { line: THREE.Line; mat: THREE.LineBasicMaterial; progress: number; opacity: number; fullPoints: THREE.Vector3[] }>>(new Map());
+  const processedOrders = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
 
-    arcs.forEach((arc, i) => {
-      const key = `${arc.order}-${i}`;
-      if (linesRef.current.has(key)) return;
+    // Add new arcs
+    arcs.forEach((arc) => {
+      // ONLY add if we haven't seen this order ID before in this mount session
+      if (processedOrders.current.has(arc.order)) return;
+      processedOrders.current.add(arc.order);
 
-      const start = latLngToVector3(arc.startLat, arc.startLng, 2.02);
-      const end = latLngToVector3(arc.endLat, arc.endLng, 2.02);
+      const start = latLngToVector3(arc.startLat, arc.startLng, 2.03);
+      const end = latLngToVector3(arc.endLat, arc.endLng, 2.03);
       const mid = start.clone().add(end).multiplyScalar(0.5);
       const dist = start.distanceTo(end);
-      const altitude = Math.max(dist * 0.4, 0.4) * (1 + arc.arcAlt);
+      const altitude = Math.max(dist * 0.5, 0.5) * (1 + arc.arcAlt);
       mid.normalize().multiplyScalar(2 + altitude);
 
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-      const fullPoints = curve.getPoints(50);
+      const fullPoints = curve.getPoints(64);
 
-      const geo = new THREE.BufferGeometry().setFromPoints([start, start.clone().add(new THREE.Vector3(0.01,0,0))]);
-      const mat = new THREE.LineBasicMaterial({ color: arc.color, transparent: true, opacity: 1 });
+      const geo = new THREE.BufferGeometry().setFromPoints([start, start.clone()]);
+      const mat = new THREE.LineBasicMaterial({ color: arc.color, transparent: true, opacity: 1, linewidth: 2 });
       const lineObj = new THREE.Line(geo, mat);
       group.add(lineObj);
 
-      linesRef.current.set(key, { line: lineObj, mat, progress: 0, opacity: 1, fullPoints });
+      linesRef.current.set(`${arc.order}`, { line: lineObj, mat, progress: 0, opacity: 1, fullPoints });
     });
-
-    // Cleanup
-    const toRemove: string[] = [];
-    linesRef.current.forEach((entry, key) => {
-      if (entry.opacity <= 0) {
-        group.remove(entry.line);
-        entry.line.geometry.dispose();
-        entry.mat.dispose();
-        toRemove.push(key);
-      }
-    });
-    toRemove.forEach(k => linesRef.current.delete(k));
   }, [arcs]);
 
   useFrame((_, delta) => {
-    linesRef.current.forEach((entry) => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    // Update existing arcs
+    linesRef.current.forEach((entry, key) => {
       if (entry.progress < 1) {
-        entry.progress = Math.min(entry.progress + delta * 1.5, 1);
+        entry.progress = Math.min(entry.progress + delta * 1.8, 1);
         const count = Math.ceil(entry.progress * entry.fullPoints.length);
-        const visible = entry.fullPoints.slice(0, Math.max(count, 5)); // Min 5 points for "length"
-        entry.line.geometry.setFromPoints(visible);
+        const visibleSlice = entry.fullPoints.slice(0, Math.max(count, 5));
+        entry.line.geometry.setFromPoints(visibleSlice);
       } else {
-        entry.opacity = Math.max(entry.opacity - delta * 1.2, 0);
+        entry.opacity = Math.max(entry.opacity - delta * 1.5, 0);
         entry.mat.opacity = entry.opacity;
+        if (entry.opacity <= 0) {
+          group.remove(entry.line);
+          entry.line.geometry.dispose();
+          entry.mat.dispose();
+          linesRef.current.delete(key);
+        }
       }
     });
   });
@@ -193,17 +187,35 @@ function AttackArcs({ arcs }: { arcs: Position[] }) {
 
 // --- Impact Rings ---
 function ImpactRings({ arcs }: { arcs: Position[] }) {
-  const targets = useMemo(() => {
-    return arcs.slice(-5).map((arc, i) => ({
-      position: latLngToVector3(arc.endLat, arc.endLng, 2.03),
-      color: arc.color,
-      key: `ring-${arc.order}-${i}`
-    }));
+  const [rings, setRings] = useState<{ position: THREE.Vector3; color: string; key: string }[]>([]);
+  const processedOrders = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const newRings: { position: THREE.Vector3; color: string; key: string }[] = [];
+    let changed = false;
+
+    arcs.forEach((arc) => {
+      if (!processedOrders.current.has(arc.order)) {
+        processedOrders.current.add(arc.order);
+        newRings.push({
+          position: latLngToVector3(arc.endLat, arc.endLng, 2.04),
+          color: arc.color,
+          key: `ring-${arc.order}`
+        });
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      setRings((prev: { position: THREE.Vector3; color: string; key: string }[]) => [...prev, ...newRings].slice(-15));
+    }
   }, [arcs]);
 
   return (
     <group>
-      {targets.map(t => <ImpactRing key={t.key} position={t.position} color={t.color} />)}
+      {rings.map((t: { position: THREE.Vector3; color: string; key: string }) => (
+        <ImpactRing key={t.key} position={t.position} color={t.color} />
+      ))}
     </group>
   );
 }
@@ -215,8 +227,8 @@ function ImpactRing({ position, color }: { position: THREE.Vector3; color: strin
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    scale.current = Math.min(scale.current + delta * 0.5, 0.2);
-    opacity.current = Math.max(opacity.current - delta * 0.5, 0);
+    scale.current = Math.min(scale.current + delta * 0.6, 0.2);
+    opacity.current = Math.max(opacity.current - delta * 0.6, 0);
     meshRef.current.scale.setScalar(scale.current);
     if (meshRef.current.material instanceof THREE.MeshBasicMaterial) {
       meshRef.current.material.opacity = opacity.current;
@@ -243,23 +255,24 @@ export default function GlobeVisualization({ arcs }: { arcs: Position[] }) {
         <pointLight position={[10, 10, 10]} intensity={0.5} />
         
         <Suspense fallback={null}>
-          <GlobeMesh />
-          <Atmosphere />
-          <WorldDots />
-          <AttackArcs arcs={arcs} />
-          <ImpactRings arcs={arcs} />
-          
-          <OrbitControls 
-            enableZoom={true} 
-            enablePan={false}
-            autoRotate={true}
-            autoRotateSpeed={0.2}
-            enableDamping={true}
-            dampingFactor={0.06}
-            minDistance={3.5}
-            maxDistance={12}
-          />
+          <WorldMap />
         </Suspense>
+
+        <GlobeMesh />
+        <Atmosphere />
+        <AttackArcs arcs={arcs} />
+        <ImpactRings arcs={arcs} />
+        
+        <OrbitControls 
+          enableZoom={true} 
+          enablePan={false}
+          autoRotate={true}
+          autoRotateSpeed={0.25}
+          enableDamping={true}
+          dampingFactor={0.07}
+          minDistance={3.5}
+          maxDistance={12}
+        />
       </Canvas>
     </div>
   );

@@ -23,6 +23,7 @@ export interface Position {
   endLng: number;
   arcAlt: number;
   color: string;
+  targetCountry?: string;
 }
 
 export const SEVERITY_COLORS: Record<Attack["severity"], string> = {

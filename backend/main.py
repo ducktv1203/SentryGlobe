@@ -117,6 +117,7 @@ async def ingest(request: IngestRequest):
         },
         target_location={
             "city": target["city"],
+            "country": target["country"],
             "lat": target["lat"],
             "lng": target["lng"],
         },

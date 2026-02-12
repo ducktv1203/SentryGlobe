@@ -30,8 +30,26 @@ SOURCE_POOL = [
 ]
 
 TARGET_POOL = [
-    {"city": "Adelaide", "lat": -34.92, "lng": 138.6},
-    {"city": "Brisbane", "lat": -27.47, "lng": 153.03},
+    # Australia
+    {"city": "Adelaide", "lat": -34.92, "lng": 138.6, "country": "Australia"},
+    {"city": "Brisbane", "lat": -27.47, "lng": 153.03, "country": "Australia"},
+    {"city": "Sydney", "lat": -33.86, "lng": 151.21, "country": "Australia"},
+    {"city": "Melbourne", "lat": -37.81, "lng": 144.96, "country": "Australia"},
+
+    # Global
+    {"city": "New York", "lat": 40.71, "lng": -74.00, "country": "United States"},
+    {"city": "London", "lat": 51.50, "lng": -0.12, "country": "United Kingdom"},
+    {"city": "Tokyo", "lat": 35.68, "lng": 139.76, "country": "Japan"},
+    {"city": "Paris", "lat": 48.85, "lng": 2.35, "country": "France"},
+    {"city": "Berlin", "lat": 52.52, "lng": 13.40, "country": "Germany"},
+    {"city": "Singapore", "lat": 1.35, "lng": 103.81, "country": "Singapore"},
+    {"city": "Dubai", "lat": 25.20, "lng": 55.27,
+        "country": "United Arab Emirates"},
+    {"city": "Los Angeles", "lat": 34.05, "lng": -
+        118.24, "country": "United States"},
+    {"city": "Sao Paulo", "lat": -23.55, "lng": -46.63, "country": "Brazil"},
+    {"city": "Mumbai", "lat": 19.07, "lng": 72.87, "country": "India"},
+    {"city": "Moscow", "lat": 55.75, "lng": 37.61, "country": "Russia"},
 ]
 
 

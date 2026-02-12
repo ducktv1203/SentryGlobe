@@ -19,5 +19,6 @@ export function attackToArc(attack: Attack, order: number): Position {
     endLng: attack.target_location.lng,
     arcAlt: altMap[attack.severity],
     color: SEVERITY_COLORS[attack.severity],
+    targetCountry: attack.target_location.country || 'Unknown',
   };
 }
