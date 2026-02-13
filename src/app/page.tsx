@@ -124,6 +124,7 @@ export default function Home() {
     viewMode === 'global'
       ? 'Top Attacking Countries'
       : `Top Attackers Targeting ${countryLabel}`;
+  const isLiveEmpty = attacks.length === 0;
 
   return (
     <main
@@ -223,6 +224,20 @@ export default function Home() {
 
       {/* Overlay UI */}
       <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+        {isLiveEmpty && (
+          <div className="pointer-events-auto absolute inset-0 flex items-center justify-center">
+            <div className="max-w-md rounded-2xl border border-white/10 bg-black/50 p-6 backdrop-blur-xl">
+              <p className="text-xs uppercase tracking-[0.35em] text-accent mb-3">
+                Awaiting Live Data
+              </p>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                No realtime attacks yet. Ensure the backend is running and Supabase
+                Realtime is enabled for the <span className="text-accent">attacks</span>
+                table.
+              </p>
+            </div>
+          </div>
+        )}
         {/* Top bar */}
         <div className="flex items-start justify-between">
           {/* Title */}

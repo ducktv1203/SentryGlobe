@@ -37,7 +37,7 @@ npm run dev
 
 Open http://localhost:3000
 
-If you do not configure Supabase, the UI will automatically generate local mock attacks every 2.5s.
+The UI only displays realtime attacks from Supabase.
 
 ### 2) Backend (FastAPI)
 
@@ -104,5 +104,5 @@ Enable Realtime for the `attacks` table and allow `INSERT` events.
 
 ## Notes
 
-- Supabase is optional for local development. Without credentials, the UI runs fully in mock mode.
+- Supabase is required for the frontend to display realtime attacks.
 - The globe outline uses `public/globe.json` (GeoJSON format).

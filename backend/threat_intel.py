@@ -1,48 +1,16 @@
 import requests
-import json
 import time
 import uuid
 import random
+import os
 from typing import List, Dict, Optional
 from datetime import datetime, timezone
 from models import Attack
 from severity import calculate_severity
+from dotenv import load_dotenv
 
-# Monitored Asset Nodes (Where the real data "lands" on our display)
-SENTRY_NODES = [
-    {"city": "Paris", "lat": 48.85, "lng": 2.35, "country": "France"},
-    {"city": "London", "lat": 51.50, "lng": -0.12, "country": "United Kingdom"},
-    {"city": "Berlin", "lat": 52.52, "lng": 13.40, "country": "Germany"},
-    {"city": "Madrid", "lat": 40.42, "lng": -3.70, "country": "Spain"},
-    {"city": "Rome", "lat": 41.90, "lng": 12.50, "country": "Italy"},
-    {"city": "Oslo", "lat": 59.91, "lng": 10.75, "country": "Norway"},
-    {"city": "Stockholm", "lat": 59.33, "lng": 18.07, "country": "Sweden"},
-    {"city": "Warsaw", "lat": 52.23, "lng": 21.01, "country": "Poland"},
-    {"city": "Istanbul", "lat": 41.01, "lng": 28.97, "country": "Turkey"},
-    {"city": "Tel Aviv", "lat": 32.08, "lng": 34.78, "country": "Israel"},
-    {"city": "Cairo", "lat": 30.04, "lng": 31.24, "country": "Egypt"},
-    {"city": "Lagos", "lat": 6.46, "lng": 3.40, "country": "Nigeria"},
-    {"city": "Nairobi", "lat": -1.29, "lng": 36.82, "country": "Kenya"},
-    {"city": "Cape Town", "lat": -33.92, "lng": 18.42, "country": "South Africa"},
-    {"city": "Riyadh", "lat": 24.71, "lng": 46.67, "country": "Saudi Arabia"},
-    {"city": "Dubai", "lat": 25.20, "lng": 55.27, "country": "United Arab Emirates"},
-    {"city": "Mumbai", "lat": 19.08, "lng": 72.88, "country": "India"},
-    {"city": "Delhi", "lat": 28.61, "lng": 77.21, "country": "India"},
-    {"city": "Singapore", "lat": 1.35, "lng": 103.81, "country": "Singapore"},
-    {"city": "Bangkok", "lat": 13.75, "lng": 100.50, "country": "Thailand"},
-    {"city": "Jakarta", "lat": -6.21, "lng": 106.85, "country": "Indonesia"},
-    {"city": "Manila", "lat": 14.60, "lng": 120.98, "country": "Philippines"},
-    {"city": "Seoul", "lat": 37.57, "lng": 126.98, "country": "South Korea"},
-    {"city": "Tokyo", "lat": 35.68, "lng": 139.76, "country": "Japan"},
-    {"city": "Sydney", "lat": -33.86, "lng": 151.21, "country": "Australia"},
-    {"city": "Auckland", "lat": -36.85, "lng": 174.76, "country": "New Zealand"},
-    {"city": "New York", "lat": 40.71, "lng": -74.00, "country": "United States"},
-    {"city": "Chicago", "lat": 41.88, "lng": -87.63, "country": "United States"},
-    {"city": "Mexico City", "lat": 19.43, "lng": -99.13, "country": "Mexico"},
-    {"city": "Sao Paulo", "lat": -23.55, "lng": -46.63, "country": "Brazil"},
-    {"city": "Buenos Aires", "lat": -34.60, "lng": -58.38, "country": "Argentina"},
-    {"city": "Toronto", "lat": 43.65, "lng": -79.38, "country": "Canada"},
-]
+load_dotenv()
+
 
 ATTACK_TYPES = ["UDP Flood", "SYN Flood", "HTTP Request",
                 "DNS Amplification", "Port Scan", "Brute Force"]
@@ -52,11 +20,15 @@ class ThreatIntelService:
     def __init__(self):
         self.threat_pool = []
         self.last_update = 0
-        self.update_interval = 1800  # 30 minutes
+        self.update_interval = int(os.getenv("THREAT_UPDATE_INTERVAL", "1800"))
         self.pointer = 0
 
+    @staticmethod
+    def _chunk_list(items: List[str], size: int) -> List[List[str]]:
+        return [items[i:i + size] for i in range(0, len(items), size)]
+
     def _fetch_real_ips(self) -> List[str]:
-        """Fetch latest identified malicious IPs from SANS ISC."""
+        """Fetch latest identified malicious IPs from upstream intel."""
         try:
             headers = {
                 'User-Agent': 'SentryGlobe/1.0 (Real-time Threat Visualization)'}
@@ -64,10 +36,48 @@ class ThreatIntelService:
                 'https://isc.sans.edu/api/sources/summary?json', headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                return [item['ip'] for item in data[:100]]
+                sans_ips = [item['ip'] for item in data if item.get('ip')]
+            else:
+                sans_ips = []
         except Exception as e:
             print(f"❌ Error fetching SANS feed: {e}")
-        return []
+            sans_ips = []
+
+        otx_ips = self._fetch_otx_ips()
+        print(f"✅ Feed counts | SANS: {len(sans_ips)} | OTX: {len(otx_ips)}")
+        merged = list(dict.fromkeys(sans_ips + otx_ips))
+        return merged
+
+    def _fetch_otx_ips(self) -> List[str]:
+        """Fetch IP indicators from AlienVault OTX (requires API key)."""
+        api_key = os.getenv("OTX_API_KEY", "")
+        if not api_key:
+            return []
+
+        try:
+            headers = {
+                'User-Agent': 'SentryGlobe/1.0 (Real-time Threat Visualization)',
+                'X-OTX-API-KEY': api_key,
+            }
+            params = {
+                'type': 'IPv4',
+                'limit': os.getenv("OTX_LIMIT", "1000"),
+            }
+            response = requests.get(
+                'https://otx.alienvault.com/api/v1/indicators/export',
+                headers=headers,
+                params=params,
+                timeout=15
+            )
+            if response.status_code != 200:
+                print(f"❌ OTX feed error: HTTP {response.status_code}")
+                return []
+
+            lines = response.text.splitlines()
+            return [line.strip() for line in lines if line.strip()]
+        except Exception as e:
+            print(f"❌ Error fetching OTX feed: {e}")
+            return []
 
     def _geolocate_ips(self, ips: List[str]) -> List[Dict]:
         """Convert raw IPs to physical locations."""
@@ -80,6 +90,7 @@ class ThreatIntelService:
                     {
                         "ip": r.get('query'),
                         "country": r.get('country'),
+                        "city": r.get('city'),
                         "lat": r.get('lat'),
                         "lng": r.get('lon')
                     }
@@ -93,9 +104,11 @@ class ThreatIntelService:
         """Update the live threat pool from upstream intelligence."""
         ips = self._fetch_real_ips()
         if ips:
-            geodata = self._geolocate_ips(ips)
-            if geodata:
-                self.threat_pool = geodata
+            all_geo: List[Dict] = []
+            for chunk in self._chunk_list(ips, 100):
+                all_geo.extend(self._geolocate_ips(chunk))
+            if all_geo:
+                self.threat_pool = all_geo
                 self.last_update = time.time()
                 self.pointer = 0
                 print(
@@ -113,8 +126,16 @@ class ThreatIntelService:
         attacker = self.threat_pool[self.pointer]
         self.pointer = (self.pointer + 1) % len(self.threat_pool)
 
-        # Map to a random Sentry Monitor Node
-        target = random.choice(SENTRY_NODES)
+        target = attacker
+        if len(self.threat_pool) > 1:
+            for _ in range(3):
+                candidate = random.choice(self.threat_pool)
+                if candidate.get("ip") != attacker.get("ip"):
+                    target = candidate
+                    break
+
+        target_city = target.get("city") or target.get("country") or "Unknown"
+        target_country = target.get("country") or "Unknown"
 
         return Attack(
             id=str(uuid.uuid4()),
@@ -125,10 +146,10 @@ class ThreatIntelService:
                 "lng": attacker['lng'],
             },
             target_location={
-                "city": target["city"],
-                "country": target["country"],
-                "lat": target["lat"],
-                "lng": target["lng"],
+                "city": target_city,
+                "country": target_country,
+                "lat": target.get("lat", 0),
+                "lng": target.get("lng", 0),
             },
             severity=calculate_severity(attacker['ip']),
             type=random.choice(ATTACK_TYPES),

@@ -4,11 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { Attack, Position } from '@/types/attack';
 import { attackToArc } from '@/lib/attackToArc';
-import { generateMockAttack } from '@/lib/mockAttacks';
 
 const MAX_ARCS = 80; // keep the globe readable
 const MAX_ATTACKS = 200;
-const INITIAL_LOAD = 200;
 
 /**
  * Subscribe to Supabase Realtime broadcast for live attacks.
@@ -21,28 +19,58 @@ export function useRealtimeAttacks() {
   const [stats, setStats] = useState({ total: 0, low: 0, medium: 0, high: 0 });
   const orderRef = useRef(0);
   const seenIds = useRef<Set<string>>(new Set());
+  const lastSeenTimestamp = useRef<string>(new Date().toISOString());
+
+  const normalizeAttack = useCallback((attack: Attack): Attack => {
+    const normalized = { ...attack } as Attack & {
+      source_location: Attack['source_location'] | string;
+      target_location: Attack['target_location'] | string;
+    };
+
+    if (typeof normalized.source_location === 'string') {
+      try {
+        normalized.source_location = JSON.parse(normalized.source_location);
+      } catch {
+        normalized.source_location = { lat: 0, lng: 0, country: 'Unknown' };
+      }
+    }
+
+    if (typeof normalized.target_location === 'string') {
+      try {
+        normalized.target_location = JSON.parse(normalized.target_location);
+      } catch {
+        normalized.target_location = { lat: 0, lng: 0, city: 'Unknown', country: 'Unknown' };
+      }
+    }
+
+    return normalized as Attack;
+  }, []);
 
   const processAttack = useCallback((attack: Attack) => {
+    const normalized = normalizeAttack(attack);
     if (seenIds.current.has(attack.id)) return;
     seenIds.current.add(attack.id);
-    console.log('Processing attack:', attack.source_ip, attack.severity);
+    console.log('Processing attack:', normalized.source_ip, normalized.severity);
     orderRef.current += 1;
-    const arc = attackToArc(attack, orderRef.current);
+    const arc = attackToArc(normalized, orderRef.current);
+    if (normalized.timestamp && normalized.timestamp > lastSeenTimestamp.current) {
+      lastSeenTimestamp.current = normalized.timestamp;
+    }
 
-    setAttacks((prev) => [attack, ...prev].slice(0, MAX_ATTACKS));
+    setAttacks((prev) => [normalized, ...prev].slice(0, MAX_ATTACKS));
     setArcs((prev) => [...prev, arc].slice(-MAX_ARCS));
     setCountryCounts((prev) => ({
       ...prev,
-      [attack.source_location.country || 'Unknown']:
-        (prev[attack.source_location.country || 'Unknown'] || 0) + 1,
+      [normalized.source_location.country || 'Unknown']:
+        (prev[normalized.source_location.country || 'Unknown'] || 0) + 1,
     }));
     setStats((prev) => ({
       total: prev.total + 1,
-      low: prev.low + (attack.severity === 'low' ? 1 : 0),
-      medium: prev.medium + (attack.severity === 'medium' ? 1 : 0),
-      high: prev.high + (attack.severity === 'high' ? 1 : 0),
+      low: prev.low + (normalized.severity === 'low' ? 1 : 0),
+      medium: prev.medium + (normalized.severity === 'medium' ? 1 : 0),
+      high: prev.high + (normalized.severity === 'high' ? 1 : 0),
     }));
-  }, []);
+  }, [normalizeAttack]);
 
   useEffect(() => {
     const client = getSupabase();
@@ -50,21 +78,18 @@ export function useRealtimeAttacks() {
       console.log('📡 Connecting to Supabase Realtime (Database mode)...');
 
       let active = true;
-      const loadInitial = async () => {
-        const { data, error } = await client
+      const pollLatest = async () => {
+        const query = client
           .from('attacks')
           .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(INITIAL_LOAD);
+          .gt('timestamp', lastSeenTimestamp.current)
+          .order('timestamp', { ascending: true })
+          .limit(50);
 
+        const { data, error } = await query;
         if (!active || error || !data) return;
-        data
-          .slice()
-          .reverse()
-          .forEach((attack) => processAttack(attack as Attack));
+        data.forEach((attack) => processAttack(attack as Attack));
       };
-
-      loadInitial();
       
       const channel = client
         .channel('schema-db-changes')
@@ -84,19 +109,16 @@ export function useRealtimeAttacks() {
           console.log('Realtime status:', status);
         });
 
+      const interval = setInterval(pollLatest, 3000);
+
       return () => {
         active = false;
+        clearInterval(interval);
         client.removeChannel(channel);
       };
     }
 
-    // Fallback: generate mock attacks locally
-    const interval = setInterval(() => {
-      const mock = generateMockAttack();
-      processAttack(mock);
-    }, 2500);
-
-    return () => clearInterval(interval);
+    return undefined;
   }, [processAttack]);
 
   return { attacks, arcs, countryCounts, stats };
