@@ -11,12 +11,12 @@ interface AttackFeedProps {
 
 export default function AttackFeed({ attacks, title, severityColors }: AttackFeedProps) {
   const palette = severityColors || SEVERITY_COLORS;
-  const recent = attacks.slice(0, 8);
+  const recent = attacks.slice(0, 10);
   const heading = title || 'Live Global Threat Feed';
 
   return (
     <div
-      className="pointer-events-auto w-80 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-2xl max-h-[340px] overflow-hidden"
+      className="pointer-events-auto w-80 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-2xl max-h-[380px] overflow-y-auto pr-2"
       style={{ boxShadow: '0 18px 40px -24px var(--accent-shadow)' }}
     >
       <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-accent mb-4 flex items-center gap-2">

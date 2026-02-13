@@ -18,8 +18,34 @@ export default function Home() {
   const { attacks, arcs } = useRealtimeAttacks();
   const [viewMode, setViewMode] = useState<'global' | 'country'>('global');
   const [selectedCountry, setSelectedCountry] = useState<string>('Australia');
+  const [allCountries, setAllCountries] = useState<string[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/globe.json')
+      .then((response) => response.json())
+      .then((data) => {
+        if (!isMounted || !data?.features) return;
+        const names = new Set<string>();
+        data.features.forEach((feature: { properties?: { admin?: string; name?: string } }) => {
+          const name = feature.properties?.admin || feature.properties?.name;
+          if (name && name.trim().length > 0) {
+            names.add(name);
+          }
+        });
+        setAllCountries(Array.from(names).sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {
+        if (isMounted) setAllCountries([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const availableCountries = useMemo(() => {
+    if (allCountries.length > 0) return allCountries;
     const countries = new Set<string>();
     attacks.forEach((attack) => {
       const country = attack.target_location.country;
@@ -28,7 +54,7 @@ export default function Home() {
       }
     });
     return Array.from(countries).sort((a, b) => a.localeCompare(b));
-  }, [attacks]);
+  }, [allCountries, attacks]);
 
   useEffect(() => {
     if (viewMode !== 'country') return;

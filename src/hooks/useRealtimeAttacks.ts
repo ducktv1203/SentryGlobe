@@ -6,7 +6,9 @@ import { Attack, Position } from '@/types/attack';
 import { attackToArc } from '@/lib/attackToArc';
 import { generateMockAttack } from '@/lib/mockAttacks';
 
-const MAX_ARCS = 30; // keep the globe readable
+const MAX_ARCS = 80; // keep the globe readable
+const MAX_ATTACKS = 200;
+const INITIAL_LOAD = 200;
 
 /**
  * Subscribe to Supabase Realtime broadcast for live attacks.
@@ -18,13 +20,16 @@ export function useRealtimeAttacks() {
   const [countryCounts, setCountryCounts] = useState<Record<string, number>>({});
   const [stats, setStats] = useState({ total: 0, low: 0, medium: 0, high: 0 });
   const orderRef = useRef(0);
+  const seenIds = useRef<Set<string>>(new Set());
 
   const processAttack = useCallback((attack: Attack) => {
+    if (seenIds.current.has(attack.id)) return;
+    seenIds.current.add(attack.id);
     console.log('Processing attack:', attack.source_ip, attack.severity);
     orderRef.current += 1;
     const arc = attackToArc(attack, orderRef.current);
 
-    setAttacks((prev) => [attack, ...prev].slice(0, 50));
+    setAttacks((prev) => [attack, ...prev].slice(0, MAX_ATTACKS));
     setArcs((prev) => [...prev, arc].slice(-MAX_ARCS));
     setCountryCounts((prev) => ({
       ...prev,
@@ -43,6 +48,23 @@ export function useRealtimeAttacks() {
     const client = getSupabase();
     if (client) {
       console.log('📡 Connecting to Supabase Realtime (Database mode)...');
+
+      let active = true;
+      const loadInitial = async () => {
+        const { data, error } = await client
+          .from('attacks')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(INITIAL_LOAD);
+
+        if (!active || error || !data) return;
+        data
+          .slice()
+          .reverse()
+          .forEach((attack) => processAttack(attack as Attack));
+      };
+
+      loadInitial();
       
       const channel = client
         .channel('schema-db-changes')
@@ -63,6 +85,7 @@ export function useRealtimeAttacks() {
         });
 
       return () => {
+        active = false;
         client.removeChannel(channel);
       };
     }

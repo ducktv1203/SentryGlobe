@@ -136,8 +136,12 @@ function WorldMap({ color }: { color: string }) {
 // --- Attack Arcs ---
 function AttackArcs({ arcs }: { arcs: Position[] }) {
   const groupRef = useRef<THREE.Group>(null);
-  const linesRef = useRef<Map<string, { line: THREE.Line; mat: THREE.LineBasicMaterial; progress: number; opacity: number; fullPoints: THREE.Vector3[] }>>(new Map());
+  const linesRef = useRef<
+    Map<string, { line: THREE.Line; mat: THREE.LineBasicMaterial; age: number; fullPoints: THREE.Vector3[] }>
+  >(new Map());
   const processedOrders = useRef<Set<number>>(new Set());
+  const ARC_TOTAL_DURATION = 2.0;
+  const ARC_DRAW_DURATION = 0.7;
 
   useEffect(() => {
     const group = groupRef.current;
@@ -153,7 +157,7 @@ function AttackArcs({ arcs }: { arcs: Position[] }) {
       const end = latLngToVector3(arc.endLat, arc.endLng, 2.03);
       const mid = start.clone().add(end).multiplyScalar(0.5);
       const dist = start.distanceTo(end);
-      const altitude = Math.max(dist * 0.5, 0.5) * (1 + arc.arcAlt);
+      const altitude = Math.max(dist * 0.55, 0.75) * (1 + arc.arcAlt);
       mid.normalize().multiplyScalar(2 + altitude);
 
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
@@ -164,7 +168,7 @@ function AttackArcs({ arcs }: { arcs: Position[] }) {
       const lineObj = new THREE.Line(geo, mat);
       group.add(lineObj);
 
-      linesRef.current.set(`${arc.order}`, { line: lineObj, mat, progress: 0, opacity: 1, fullPoints });
+      linesRef.current.set(`${arc.order}`, { line: lineObj, mat, age: 0, fullPoints });
     });
   }, [arcs]);
 
@@ -174,20 +178,25 @@ function AttackArcs({ arcs }: { arcs: Position[] }) {
 
     // Update existing arcs
     linesRef.current.forEach((entry, key) => {
-      if (entry.progress < 1) {
-        entry.progress = Math.min(entry.progress + delta * 1.8, 1);
-        const count = Math.ceil(entry.progress * entry.fullPoints.length);
-        const visibleSlice = entry.fullPoints.slice(0, Math.max(count, 5));
-        entry.line.geometry.setFromPoints(visibleSlice);
-      } else {
-        entry.opacity = Math.max(entry.opacity - delta * 1.5, 0);
-        entry.mat.opacity = entry.opacity;
-        if (entry.opacity <= 0) {
-          group.remove(entry.line);
-          entry.line.geometry.dispose();
-          entry.mat.dispose();
-          linesRef.current.delete(key);
-        }
+      entry.age += delta;
+      const drawProgress = Math.min(entry.age / ARC_DRAW_DURATION, 1);
+      const count = Math.ceil(drawProgress * entry.fullPoints.length);
+      const visibleSlice = entry.fullPoints.slice(0, Math.max(count, 5));
+      entry.line.geometry.setFromPoints(visibleSlice);
+
+      if (entry.age > ARC_DRAW_DURATION) {
+        const fadeProgress = Math.min(
+          (entry.age - ARC_DRAW_DURATION) / (ARC_TOTAL_DURATION - ARC_DRAW_DURATION),
+          1
+        );
+        entry.mat.opacity = Math.max(1 - fadeProgress, 0);
+      }
+
+      if (entry.age >= ARC_TOTAL_DURATION) {
+        group.remove(entry.line);
+        entry.line.geometry.dispose();
+        entry.mat.dispose();
+        linesRef.current.delete(key);
       }
     });
   });
@@ -232,16 +241,21 @@ function ImpactRings({ arcs }: { arcs: Position[] }) {
 
 function ImpactRing({ position, color }: { position: THREE.Vector3; color: string }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const scale = useRef(0.01);
-  const opacity = useRef(1);
+  const age = useRef(0);
+  const DURATION = 2.0;
+  const MIN_SCALE = 0.05;
+  const MAX_SCALE = 0.26;
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    scale.current = Math.min(scale.current + delta * 0.6, 0.2);
-    opacity.current = Math.max(opacity.current - delta * 0.6, 0);
-    meshRef.current.scale.setScalar(scale.current);
+    age.current = Math.min(age.current + delta, DURATION);
+    const t = Math.min(age.current / DURATION, 1);
+    const scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * t;
+    const opacity = Math.max(1 - t, 0);
+    meshRef.current.scale.setScalar(scale);
+    meshRef.current.visible = opacity > 0;
     if (meshRef.current.material instanceof THREE.MeshBasicMaterial) {
-      meshRef.current.material.opacity = opacity.current;
+      meshRef.current.material.opacity = opacity;
     }
   });
 
