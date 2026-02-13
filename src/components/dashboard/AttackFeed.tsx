@@ -1,20 +1,27 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Attack, SEVERITY_COLORS, ATTACK_TYPE_LABELS } from '@/types/attack';
+import { Attack, SEVERITY_COLORS, ATTACK_TYPE_LABELS, SeverityColors } from '@/types/attack';
 
 interface AttackFeedProps {
   attacks: Attack[];
+  title?: string;
+  severityColors?: SeverityColors;
 }
 
-export default function AttackFeed({ attacks }: AttackFeedProps) {
+export default function AttackFeed({ attacks, title, severityColors }: AttackFeedProps) {
+  const palette = severityColors || SEVERITY_COLORS;
   const recent = attacks.slice(0, 8);
+  const heading = title || 'Live Global Threat Feed';
 
   return (
-    <div className="pointer-events-auto w-80 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-2xl shadow-cyan-500/5 max-h-[340px] overflow-hidden">
-      <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-400 mb-4 flex items-center gap-2">
+    <div
+      className="pointer-events-auto w-80 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 shadow-2xl max-h-[340px] overflow-hidden"
+      style={{ boxShadow: '0 18px 40px -24px var(--accent-shadow)' }}
+    >
+      <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-accent mb-4 flex items-center gap-2">
         <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-        Live Global Threat Feed
+        {heading}
       </h2>
 
       <AnimatePresence mode="popLayout" initial={false}>
@@ -33,8 +40,8 @@ export default function AttackFeed({ attacks }: AttackFeedProps) {
                 <span
                   className="w-1.5 h-1.5 rounded-full"
                   style={{
-                    backgroundColor: SEVERITY_COLORS[attack.severity],
-                    boxShadow: `0 0 6px ${SEVERITY_COLORS[attack.severity]}`,
+                    backgroundColor: palette[attack.severity],
+                    boxShadow: `0 0 6px ${palette[attack.severity]}`,
                   }}
                 />
                 <span className="text-[11px] font-mono text-gray-300">
@@ -44,8 +51,8 @@ export default function AttackFeed({ attacks }: AttackFeedProps) {
               <span
                 className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                 style={{
-                  color: SEVERITY_COLORS[attack.severity],
-                  backgroundColor: `${SEVERITY_COLORS[attack.severity]}15`,
+                  color: palette[attack.severity],
+                  backgroundColor: `${palette[attack.severity]}15`,
                 }}
               >
                 {ATTACK_TYPE_LABELS[attack.type]}
@@ -62,7 +69,7 @@ export default function AttackFeed({ attacks }: AttackFeedProps) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">
-                  Target: {attack.target_location.city}, {attack.target_location.country}
+                  Target: {attack.target_location.city}, {attack.target_location.country || 'Unknown'}
                 </span>
                 <span className="text-[9px] text-gray-600 font-mono">
                   {new Date(attack.timestamp).toLocaleTimeString()}

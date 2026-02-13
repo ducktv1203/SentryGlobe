@@ -41,13 +41,22 @@ const SOURCE_POOL: SourcePool[] = [
 
 interface TargetPool {
   city: string;
+  country: string;
   lat: number;
   lng: number;
 }
 
 const TARGET_POOL: TargetPool[] = [
-  { city: 'Adelaide', lat: -34.92, lng: 138.6 },
-  { city: 'Brisbane', lat: -27.47, lng: 153.03 },
+  { city: 'Adelaide', country: 'Australia', lat: -34.92, lng: 138.6 },
+  { city: 'Brisbane', country: 'Australia', lat: -27.47, lng: 153.03 },
+  { city: 'Tokyo', country: 'Japan', lat: 35.68, lng: 139.76 },
+  { city: 'Paris', country: 'France', lat: 48.85, lng: 2.35 },
+  { city: 'London', country: 'United Kingdom', lat: 51.5, lng: -0.12 },
+  { city: 'Berlin', country: 'Germany', lat: 52.52, lng: 13.4 },
+  { city: 'New York', country: 'United States', lat: 40.71, lng: -74.0 },
+  { city: 'Sao Paulo', country: 'Brazil', lat: -23.55, lng: -46.63 },
+  { city: 'Singapore', country: 'Singapore', lat: 1.35, lng: 103.81 },
+  { city: 'Toronto', country: 'Canada', lat: 43.65, lng: -79.38 },
 ];
 
 function randomItem<T>(arr: T[]): T {
@@ -82,6 +91,7 @@ export function generateMockAttack(): Attack {
     },
     target_location: {
       city: target.city,
+      country: target.country,
       lat: target.lat,
       lng: target.lng,
     },

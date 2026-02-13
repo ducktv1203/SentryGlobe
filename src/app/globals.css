@@ -12,6 +12,36 @@
   --neon-red: #ff003c;
   --bg-primary: #030712;
   --bg-secondary: #0a0e1a;
+  --accent-primary: #00f0ff;
+  --accent-secondary: #00b4ff;
+  --accent-shadow: rgba(0, 240, 255, 0.18);
+  --accent-border: rgba(0, 240, 255, 0.25);
+  --accent-grid-1: rgba(0, 240, 255, 0.03);
+  --accent-grid-2: rgba(255, 0, 229, 0.02);
+}
+
+.theme-global {
+  --neon-cyan: #00f0ff;
+  --neon-magenta: #ff00e5;
+  --neon-blue: #00b4ff;
+  --accent-primary: #00f0ff;
+  --accent-secondary: #00b4ff;
+  --accent-shadow: rgba(0, 240, 255, 0.18);
+  --accent-border: rgba(0, 240, 255, 0.25);
+  --accent-grid-1: rgba(0, 240, 255, 0.03);
+  --accent-grid-2: rgba(255, 0, 229, 0.02);
+}
+
+.theme-country {
+  --neon-cyan: #d946ef;
+  --neon-magenta: #a855f7;
+  --neon-blue: #7c3aed;
+  --accent-primary: #d946ef;
+  --accent-secondary: #a855f7;
+  --accent-shadow: rgba(217, 70, 239, 0.2);
+  --accent-border: rgba(217, 70, 239, 0.28);
+  --accent-grid-1: rgba(217, 70, 239, 0.04);
+  --accent-grid-2: rgba(99, 102, 241, 0.04);
 }
 
 * {
@@ -57,12 +87,12 @@ body {
   background-image:
     radial-gradient(
       circle at 25% 25%,
-      rgba(0, 240, 255, 0.03) 0%,
+      var(--accent-grid-1) 0%,
       transparent 50%
     ),
     radial-gradient(
       circle at 75% 75%,
-      rgba(255, 0, 229, 0.02) 0%,
+      var(--accent-grid-2) 0%,
       transparent 50%
     );
 }
@@ -96,32 +126,30 @@ body {
   animation: pulse-ring 1.5s ease-out infinite;
 }
 
-/* Scanning line effect */
-@keyframes scan-line {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100vh);
-  }
+
+.text-accent {
+  color: var(--accent-primary);
 }
 
-.scan-line {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--neon-cyan),
-    transparent
-  );
-  opacity: 0.15;
-  animation: scan-line 8s linear infinite;
-  pointer-events: none;
-  z-index: 100;
+.text-accent-muted {
+  color: var(--accent-primary);
+  opacity: 0.7;
+}
+
+.border-accent {
+  border-color: var(--accent-border);
+}
+
+.bg-accent {
+  background-color: var(--accent-primary);
+}
+
+.bg-accent-soft {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.text-accent-hover:hover {
+  color: var(--accent-primary);
 }
 
 /* Title shimmer */

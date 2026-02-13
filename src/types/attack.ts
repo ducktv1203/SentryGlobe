@@ -23,10 +23,13 @@ export interface Position {
   endLng: number;
   arcAlt: number;
   color: string;
+  severity: Attack["severity"];
   targetCountry?: string;
 }
 
-export const SEVERITY_COLORS: Record<Attack["severity"], string> = {
+export type SeverityColors = Record<Attack["severity"], string>;
+
+export const SEVERITY_COLORS: SeverityColors = {
   low: "#00b4ff", // neon blue
   medium: "#ffcc00", // neon yellow
   high: "#ff003c", // neon red

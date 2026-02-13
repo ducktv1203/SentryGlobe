@@ -34,7 +34,8 @@ function GlobeMesh() {
 }
 
 // --- Atmosphere Glow ---
-function Atmosphere() {
+function Atmosphere({ color }: { color: string }) {
+  const glowColor = useMemo(() => new THREE.Color(color), [color]);
   const vertexShader = `
     varying vec3 vNormal;
     void main() {
@@ -45,9 +46,10 @@ function Atmosphere() {
 
   const fragmentShader = `
     varying vec3 vNormal;
+    uniform vec3 uColor;
     void main() {
       float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-      gl_FragColor = vec4(0.0, 0.94, 1.0, 1.0) * intensity * 0.4;
+      gl_FragColor = vec4(uColor, 1.0) * intensity * 0.4;
     }
   `;
 
@@ -57,6 +59,7 @@ function Atmosphere() {
       <shaderMaterial
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
+        uniforms={{ uColor: { value: glowColor } }}
         blending={THREE.AdditiveBlending}
         side={THREE.BackSide}
         transparent
@@ -66,7 +69,7 @@ function Atmosphere() {
 }
 
 // --- World Map Outlines (Vector Lines) ---
-function WorldMap() {
+function WorldMap({ color }: { color: string }) {
   const data = useLoader(THREE.FileLoader, '/globe.json');
   
   const lineGroups = useMemo(() => {
@@ -116,7 +119,7 @@ function WorldMap() {
               args={[new Float32Array(points.flatMap(p => [p.x, p.y, p.z])), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial attach="material" color="#00f0ff" transparent opacity={0.3} linewidth={1} />
+          <lineBasicMaterial attach="material" color={color} transparent opacity={0.3} linewidth={1} />
         </lineLoop>
       ))}
     </group>
@@ -242,9 +245,9 @@ function ImpactRing({ position, color }: { position: THREE.Vector3; color: strin
     </mesh>
   );
 }
-
 // --- Main Globe Dashboard ---
-export default function GlobeVisualization({ arcs }: { arcs: Position[] }) {
+export default function GlobeVisualization({ arcs, accentColor }: { arcs: Position[]; accentColor?: string }) {
+  const glowColor = accentColor || '#00f0ff';
   return (
     <div className="absolute inset-0 w-full h-full">
       <Canvas
@@ -253,13 +256,15 @@ export default function GlobeVisualization({ arcs }: { arcs: Position[] }) {
       >
         <ambientLight intensity={0.2} />
         <pointLight position={[10, 10, 10]} intensity={0.5} />
+        <pointLight position={[0, 0, -6]} intensity={0.55} color={glowColor} />
+        <pointLight position={[0, -5, 2]} intensity={0.35} color={glowColor} />
         
         <Suspense fallback={null}>
-          <WorldMap />
+          <WorldMap color={glowColor} />
         </Suspense>
 
         <GlobeMesh />
-        <Atmosphere />
+        <Atmosphere color={glowColor} />
         <AttackArcs arcs={arcs} />
         <ImpactRings arcs={arcs} />
         

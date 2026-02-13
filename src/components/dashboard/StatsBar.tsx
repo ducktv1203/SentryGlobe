@@ -1,22 +1,27 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { SEVERITY_COLORS } from '@/types/attack';
+import { SEVERITY_COLORS, SeverityColors } from '@/types/attack';
 
 interface StatsBarProps {
   stats: { total: number; low: number; medium: number; high: number };
+  severityColors?: SeverityColors;
 }
 
-export default function StatsBar({ stats }: StatsBarProps) {
+export default function StatsBar({ stats, severityColors }: StatsBarProps) {
+  const palette = severityColors || SEVERITY_COLORS;
   const items = [
-    { label: 'Total Attacks', value: stats.total, color: '#00f0ff' },
-    { label: 'Low', value: stats.low, color: SEVERITY_COLORS.low },
-    { label: 'Medium', value: stats.medium, color: SEVERITY_COLORS.medium },
-    { label: 'High', value: stats.high, color: SEVERITY_COLORS.high },
+    { label: 'Total Attacks', value: stats.total, color: 'var(--accent-primary)' },
+    { label: 'Low', value: stats.low, color: palette.low },
+    { label: 'Medium', value: stats.medium, color: palette.medium },
+    { label: 'High', value: stats.high, color: palette.high },
   ];
 
   return (
-    <div className="pointer-events-auto flex items-center gap-4 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl px-6 py-3 shadow-2xl shadow-cyan-500/5">
+    <div
+      className="pointer-events-auto flex items-center gap-4 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl px-6 py-3 shadow-2xl"
+      style={{ boxShadow: '0 18px 40px -24px var(--accent-shadow)' }}
+    >
       {items.map((item) => (
         <div key={item.label} className="flex flex-col items-center min-w-[60px]">
           <motion.span
