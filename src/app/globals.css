@@ -152,6 +152,21 @@ body {
   color: var(--accent-primary);
 }
 
+.sg-select {
+  background-color: #0a101f;
+  color: #e5e7eb;
+  border-color: var(--accent-border);
+}
+
+.sg-select:focus {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06), 0 0 10px var(--accent-shadow);
+}
+
+.sg-select option {
+  background-color: #0a101f;
+  color: #e5e7eb;
+}
+
 /* Title shimmer */
 @keyframes shimmer {
   0% {

@@ -107,7 +107,7 @@ export default function Home() {
 
       {/* View Mode Toggle */}
       <div className="absolute top-24 left-6 z-30 pointer-events-auto">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-start gap-2">
           <span
             className="text-[10px] uppercase tracking-widest font-bold"
             style={{ color: 'var(--accent-primary)', opacity: 0.6 }}
@@ -120,7 +120,7 @@ export default function Home() {
           >
             <button
               onClick={() => setViewMode('global')}
-              className={`px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 ${
+              className={`w-24 px-4 py-1.5 rounded-full text-[11px] font-bold text-center transition-all duration-300 ${
                 viewMode === 'global'
                   ? 'text-white'
                   : 'text-gray-400 text-accent-hover'
@@ -138,7 +138,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setViewMode('country')}
-              className={`px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 ${
+              className={`w-24 px-4 py-1.5 rounded-full text-[11px] font-bold text-center transition-all duration-300 ${
                 viewMode === 'country'
                   ? 'text-white'
                   : 'text-gray-400 text-accent-hover'
@@ -160,29 +160,40 @@ export default function Home() {
               <span className="text-[9px] uppercase tracking-[0.25em] text-gray-500">
                 Target Country
               </span>
-              <select
-                value={selectedCountry}
-                onChange={(event) => setSelectedCountry(event.target.value)}
-                className="w-56 rounded-md border bg-[#0a101f]/80 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-200 outline-none"
-                style={{ borderColor: 'var(--accent-border)' }}
-                disabled={availableCountries.length === 0}
-              >
-                {availableCountries.length === 0 && (
-                  <option value="">Loading...</option>
-                )}
-                {availableCountries.map((country) => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </select>
+              <div className="relative w-56">
+                <select
+                  value={selectedCountry}
+                  onChange={(event) => setSelectedCountry(event.target.value)}
+                  className="sg-select w-full appearance-none rounded-md border bg-[#0a101f]/80 px-3 py-2 pr-9 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-200 outline-none"
+                  disabled={availableCountries.length === 0}
+                >
+                  {availableCountries.length === 0 && (
+                    <option value="">Loading...</option>
+                  )}
+                  {availableCountries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px]"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  ▼
+                </span>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* 3D Globe - full viewport background */}
-      <GlobeVisualization arcs={themedArcs} accentColor={accentColor} />
+      <GlobeVisualization
+        key={viewMode}
+        arcs={themedArcs}
+        accentColor={accentColor}
+      />
 
       {/* Overlay UI */}
       <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">

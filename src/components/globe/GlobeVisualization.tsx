@@ -1,10 +1,9 @@
 'use client';
 
-import { useRef, useMemo, Suspense, useState } from 'react';
+import { useRef, useMemo, Suspense, useState, useEffect } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { useEffect } from 'react';
 import { Position } from '@/types/attack';
 
 // --- Helper: Lat/Lng to 3D ---
@@ -36,6 +35,7 @@ function GlobeMesh() {
 // --- Atmosphere Glow ---
 function Atmosphere({ color }: { color: string }) {
   const glowColor = useMemo(() => new THREE.Color(color), [color]);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
   const vertexShader = `
     varying vec3 vNormal;
     void main() {
@@ -53,10 +53,17 @@ function Atmosphere({ color }: { color: string }) {
     }
   `;
 
+  useEffect(() => {
+    if (!materialRef.current) return;
+    materialRef.current.uniforms.uColor.value.set(color);
+    materialRef.current.uniforms.uColor.needsUpdate = true;
+  }, [glowColor]);
+
   return (
     <mesh scale={[1.15, 1.15, 1.15]}>
       <sphereGeometry args={[2, 64, 64]} />
       <shaderMaterial
+        ref={materialRef}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
         uniforms={{ uColor: { value: glowColor } }}
@@ -248,16 +255,31 @@ function ImpactRing({ position, color }: { position: THREE.Vector3; color: strin
 // --- Main Globe Dashboard ---
 export default function GlobeVisualization({ arcs, accentColor }: { arcs: Position[]; accentColor?: string }) {
   const glowColor = accentColor || '#00f0ff';
+  const ambientRef = useRef<THREE.AmbientLight>(null);
+  const backRef = useRef<THREE.PointLight>(null);
+  const underRef = useRef<THREE.PointLight>(null);
+
+  useEffect(() => {
+    if (ambientRef.current) {
+      ambientRef.current.color.set(glowColor);
+    }
+    if (backRef.current) {
+      backRef.current.color.set(glowColor);
+    }
+    if (underRef.current) {
+      underRef.current.color.set(glowColor);
+    }
+  }, [glowColor]);
   return (
     <div className="absolute inset-0 w-full h-full">
       <Canvas
         camera={{ position: [0, 0, 6], fov: 40 }}
         gl={{ antialias: true, alpha: true }}
       >
-        <ambientLight intensity={0.2} />
+        <ambientLight ref={ambientRef} intensity={0.2} color={glowColor} />
         <pointLight position={[10, 10, 10]} intensity={0.5} />
-        <pointLight position={[0, 0, -6]} intensity={0.55} color={glowColor} />
-        <pointLight position={[0, -5, 2]} intensity={0.35} color={glowColor} />
+        <pointLight ref={backRef} position={[0, 0, -6]} intensity={0.55} color={glowColor} />
+        <pointLight ref={underRef} position={[0, -5, 2]} intensity={0.35} color={glowColor} />
         
         <Suspense fallback={null}>
           <WorldMap color={glowColor} />
