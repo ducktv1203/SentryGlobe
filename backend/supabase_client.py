@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -39,8 +39,8 @@ async def broadcast_attack(attack_dict: dict) -> bool:
 
     try:
         # Use simple table insertion - this is extremely stable in Python
-        client.table("attacks").insert(attack_dict).execute()
+        res = client.table("attacks").insert(attack_dict).execute()
         return True
     except Exception as e:
-        print(f"[Supabase] Insert error: {e}")
+        print(f"❌ [Supabase] Insert error: {type(e).__name__}: {e}")
         return False

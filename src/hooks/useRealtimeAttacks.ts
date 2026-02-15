@@ -7,6 +7,7 @@ import { attackToArc } from '@/lib/attackToArc';
 
 const MAX_ARCS = 80; // keep the globe readable
 const MAX_ATTACKS = 200;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * Subscribe to Supabase Realtime broadcast for live attacks.
@@ -118,7 +119,29 @@ export function useRealtimeAttacks() {
       };
     }
 
-    return undefined;
+    // Fallback: poll backend when Supabase not configured
+    console.log('📡 Falling back to backend polling (no Supabase)');
+    let active = true;
+    const pollBackend = async () => {
+      try {
+        const url = `${API_URL}/recent?since=${encodeURIComponent(lastSeenTimestamp.current)}`;
+        const res = await fetch(url);
+        if (!active || !res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          data.forEach((a: Attack) => processAttack(a));
+        }
+      } catch {
+        // Backend may not be running
+      }
+    };
+    pollBackend();
+    const interval = setInterval(pollBackend, 2500);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [processAttack]);
 
   return { attacks, arcs, countryCounts, stats };

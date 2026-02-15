@@ -14,10 +14,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import Attack, IngestRequest
-from threat_intel import intel_service
-from severity import calculate_severity
-from supabase_client import broadcast_attack, is_supabase_configured
+from .models import Attack, IngestRequest
+from .threat_intel import intel_service
+from .severity import calculate_severity
+from .supabase_client import broadcast_attack, is_supabase_configured
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
@@ -25,6 +25,8 @@ logger = logging.getLogger("sentryglobe")
 
 # --- Live Threat Stream ---
 _stop_event = asyncio.Event()
+_recent_attacks: list[dict] = []
+MAX_RECENT = 200
 
 
 async def threat_streaming_loop():
@@ -37,6 +39,9 @@ async def threat_streaming_loop():
 
             if event:
                 attack_dict = event.model_dump()
+                _recent_attacks.append(attack_dict)
+                if len(_recent_attacks) > MAX_RECENT:
+                    _recent_attacks.pop(0)
                 sent = await broadcast_attack(attack_dict)
                 status = "📡 LIVE" if sent else "🔇 OFFLINE"
 
@@ -78,6 +83,15 @@ app.add_middleware(
 )
 
 
+@app.get("/recent")
+async def recent_attacks(since: str | None = None):
+    """Return recent attacks (for frontend polling when Supabase not configured)."""
+    attacks = _recent_attacks
+    if since:
+        attacks = [a for a in attacks if a.get("timestamp", "") > since]
+    return attacks[-100:]  # return up to 100 most recent
+
+
 @app.get("/")
 async def root():
     return {
@@ -105,5 +119,9 @@ async def ingest_attack(request: IngestRequest):
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
-    await broadcast_attack(attack.model_dump())
+    attack_dict = attack.model_dump()
+    _recent_attacks.append(attack_dict)
+    if len(_recent_attacks) > MAX_RECENT:
+        _recent_attacks.pop(0)
+    await broadcast_attack(attack_dict)
     return {"status": "ingested", "severity": severity}

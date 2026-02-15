@@ -3,17 +3,30 @@ import time
 import uuid
 import random
 import os
+import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timezone
-from models import Attack
-from severity import calculate_severity
+from .models import Attack
+from .severity import calculate_severity
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+logger = logging.getLogger("sentryglobe")
 
 ATTACK_TYPES = ["UDP Flood", "SYN Flood", "HTTP Request",
                 "DNS Amplification", "Port Scan", "Brute Force"]
+
+# Monitored Asset Nodes (Where the real data "lands" on our display)
+SENTRY_NODES = [
+    {"city": "Paris", "lat": 48.85, "lng": 2.35, "country": "France"},
+    {"city": "New York", "lat": 40.71, "lng": -74.00, "country": "United States"},
+    {"city": "Tokyo", "lat": 35.68, "lng": 139.76, "country": "Japan"},
+    {"city": "London", "lat": 51.50, "lng": -0.12, "country": "United Kingdom"},
+    {"city": "Berlin", "lat": 52.52, "lng": 13.40, "country": "Germany"},
+    {"city": "Singapore", "lat": 1.35, "lng": 103.81, "country": "Singapore"},
+    {"city": "Sydney", "lat": -33.86, "lng": 151.21, "country": "Australia"},
+]
 
 
 class ThreatIntelService:
@@ -40,44 +53,10 @@ class ThreatIntelService:
             else:
                 sans_ips = []
         except Exception as e:
-            print(f"❌ Error fetching SANS feed: {e}")
+            logger.error(f"❌ Error fetching SANS feed: {e}")
             sans_ips = []
 
-        otx_ips = self._fetch_otx_ips()
-        print(f"✅ Feed counts | SANS: {len(sans_ips)} | OTX: {len(otx_ips)}")
-        merged = list(dict.fromkeys(sans_ips + otx_ips))
-        return merged
-
-    def _fetch_otx_ips(self) -> List[str]:
-        """Fetch IP indicators from AlienVault OTX (requires API key)."""
-        api_key = os.getenv("OTX_API_KEY", "")
-        if not api_key:
-            return []
-
-        try:
-            headers = {
-                'User-Agent': 'SentryGlobe/1.0 (Real-time Threat Visualization)',
-                'X-OTX-API-KEY': api_key,
-            }
-            params = {
-                'type': 'IPv4',
-                'limit': os.getenv("OTX_LIMIT", "1000"),
-            }
-            response = requests.get(
-                'https://otx.alienvault.com/api/v1/indicators/export',
-                headers=headers,
-                params=params,
-                timeout=15
-            )
-            if response.status_code != 200:
-                print(f"❌ OTX feed error: HTTP {response.status_code}")
-                return []
-
-            lines = response.text.splitlines()
-            return [line.strip() for line in lines if line.strip()]
-        except Exception as e:
-            print(f"❌ Error fetching OTX feed: {e}")
-            return []
+        return sans_ips
 
     def _geolocate_ips(self, ips: List[str]) -> List[Dict]:
         """Convert raw IPs to physical locations."""
@@ -96,8 +75,8 @@ class ThreatIntelService:
                     }
                     for r in results if r.get('status') == 'success'
                 ]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"❌ Error geolocating: {e}")
         return []
 
     def refresh(self):
@@ -111,7 +90,7 @@ class ThreatIntelService:
                 self.threat_pool = all_geo
                 self.last_update = time.time()
                 self.pointer = 0
-                print(
+                logger.info(
                     f"✅ Threat Intelligence Sync: {len(self.threat_pool)} active attackers cached.")
 
     def get_next_event(self) -> Optional[Attack]:
@@ -126,16 +105,8 @@ class ThreatIntelService:
         attacker = self.threat_pool[self.pointer]
         self.pointer = (self.pointer + 1) % len(self.threat_pool)
 
-        target = attacker
-        if len(self.threat_pool) > 1:
-            for _ in range(3):
-                candidate = random.choice(self.threat_pool)
-                if candidate.get("ip") != attacker.get("ip"):
-                    target = candidate
-                    break
-
-        target_city = target.get("city") or target.get("country") or "Unknown"
-        target_country = target.get("country") or "Unknown"
+        # Map to a random Sentry Monitor Node instead of just random from pool
+        target = random.choice(SENTRY_NODES)
 
         return Attack(
             id=str(uuid.uuid4()),
@@ -146,10 +117,10 @@ class ThreatIntelService:
                 "lng": attacker['lng'],
             },
             target_location={
-                "city": target_city,
-                "country": target_country,
-                "lat": target.get("lat", 0),
-                "lng": target.get("lng", 0),
+                "city": target["city"],
+                "country": target["country"],
+                "lat": target["lat"],
+                "lng": target["lng"],
             },
             severity=calculate_severity(attacker['ip']),
             type=random.choice(ATTACK_TYPES),
